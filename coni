@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+
+# makes menu items
+make_menu() {
+    array=($@)
+    items=$(
+        let end=${#array[@]}-1 
+        pos=1
+        for i in $(seq 0 $end); do
+            printf '%d %s\n' "$pos" ${array[$i]}
+            let pos=$pos+1
+        done
+    )
+    echo $items
+}
+
+# finds interface list and shows a menu with them
+iface_menu() {
+    iface_list=( $(/sbin/ifconfig -l) )
+    iface_items=$(make_menu ${iface_list[@]})
+    iface_tmp=$(mktemp)
+    
+    dialog --title "Interface List" \
+        --menu "Please, choose an interface: " 0 0 0 $iface_items 2> $iface_tmp
+    
+    let choice="$(cat $iface_tmp)"-1
+    ifname=${iface_list[$choice]}
+}
+
+# finds wifi list and shows a menu with them
+wifi_menu() {
+    wifi_list=( $(ifconfig -v $ifname list scan |  cut -d ' ' -f 1 | tail -n +2) )
+    witems=$(make_menu ${wifi_list[@]})
+    wifi_tmp=$(mktemp)
+
+    dialog --title "Wifi List" \
+        --menu "Please, choose a wifi: " 0 0 0 $witems 2> $wifi_tmp
+
+    let wifi_choice=$(cat $wifi_tmp)-1
+    wname=${wifi_list[$wifi_choice]} 
+}
+
+main() {
+    wpa_conf=/etc/wpa_supplicant.conf
+
+    iface_menu # ifname
+
+    ifconfig $ifname up
+    sleep 2
+
+    wifi_menu # wname
+
+    # if wlan0 or similar interface selected show wifi connections
+    echo $ifname | grep wlan
+    if [[ $? -eq 0 ]]; then
+        # if selected wifi in already config file, just connect
+        cat $wpa_conf | grep $wname > /dev/null
+        if [[ $? -eq r1 ]]; then
+            wpa_supplicant -B -i $ifname -c $wpa_conf
+        else
+            user_input=$(\
+                 dialog --title "Password for $wname" \
+                 --inputbox "Enter your password(At least 8 character):" 8 40 \
+                3>&1 1>&2 2>&3 3>&- \
+            )
+    
+            wpa_passphrase $wname $user_input >> $wpa_conf
+            wpa_supplicant -B -i $ifname -c $wpa_conf
+        fi
+    fi
+}
+
+main
