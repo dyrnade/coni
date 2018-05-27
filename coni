@@ -58,6 +58,7 @@ main() {
         if [[ $? -eq r1 ]]; then
             wpa_supplicant -B -i $ifname -c $wpa_conf
         else
+            # ref: https://stackoverflow.com/questions/29222633/bash-dialog-input-in-a-variable
             user_input=$(\
                  dialog --title "Password for $wname" \
                  --inputbox "Enter your password(At least 8 character):" 8 40 \
